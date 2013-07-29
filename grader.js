@@ -22,11 +22,13 @@ References:
 */
 
 var fs = require('fs');
+var rest = require('restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
-
+var URL_DEFAULT = 'http://dry-dusk-7251.herokuapp.com';
+var htmlfile = "tmp.html";
 var assertFileExists = function(infile) {
     var instr = infile.toString();
     if(!fs.existsSync(instr)) {
@@ -62,12 +64,41 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var buildfn = function(htmlfile) {
+    var response2console = function(result, response) {
+        if (result instanceof Error) {
+            console.error('Error: ' + util.format(response.message));
+        } else {
+            console.error("Wrote %s", htmlfile);
+            fs.writeFileSync(htmlfile, result);
+        }
+    };
+    return response2console;
+};
+
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists))
+        .option('-u, --url <url>', 'url to HTML file')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
+
+    var checkJson;
+    if(program.file && program.url){
+
+        console.error("only file or url can be specified not both");
+        process.exit(1);
+    }
+   else if(program.file) {
+        checkJson = checkHtmlFile(program.file, program.checks);
+    }
+   else if(program.url) {
+        var response2console = buildfn(htmlfile);
+        rest.get(program.url).on('complete', response2console);
+        checkJson = checkHtmlFile(htmlfile, program.checks);
+    }
+
     var outJson = JSON.stringify(checkJson, null, 4);
     console.log(outJson);
 } else {
